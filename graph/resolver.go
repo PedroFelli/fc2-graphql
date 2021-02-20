@@ -5,8 +5,9 @@ import  "github.com/pedrofelli/fc2-graphql/graph/model"
 //
 // It serves as dependency injection for your app, add any  dependencies you require here.
 
-type Resolver struct{
+type Resolver struct {
 	Categories []*model.Category
-	Courses []*model.Course
-	Chapters []*model.Chapter
+	Courses    []*model.Course
+	Chapters   []*model.Chapter
 }
+

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"strconv"
 	"sync"
+	"sync/atomic"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
@@ -34,6 +35,8 @@ type Config struct {
 }
 
 type ResolverRoot interface {
+	Category() CategoryResolver
+	Course() CourseResolver
 	Mutation() MutationResolver
 	Query() QueryResolver
 }
@@ -50,14 +53,14 @@ type ComplexityRoot struct {
 	}
 
 	Chapter struct {
-		Categories func(childComplexity int) int
-		Course     func(childComplexity int) int
-		ID         func(childComplexity int) int
-		Name       func(childComplexity int) int
+		Category func(childComplexity int) int
+		Course   func(childComplexity int) int
+		ID       func(childComplexity int) int
+		Name     func(childComplexity int) int
 	}
 
 	Course struct {
-		Categories  func(childComplexity int) int
+		Category    func(childComplexity int) int
 		Chapters    func(childComplexity int) int
 		Description func(childComplexity int) int
 		ID          func(childComplexity int) int
@@ -77,6 +80,12 @@ type ComplexityRoot struct {
 	}
 }
 
+type CategoryResolver interface {
+	Courses(ctx context.Context, obj *model.Category) ([]*model.Course, error)
+}
+type CourseResolver interface {
+	Chapters(ctx context.Context, obj *model.Course) ([]*model.Chapter, error)
+}
 type MutationResolver interface {
 	CreateCategory(ctx context.Context, input model.NewCategory) (*model.Category, error)
 	CreateCourse(ctx context.Context, input model.NewCourse) (*model.Course, error)
@@ -131,12 +140,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Category.Name(childComplexity), true
 
-	case "Chapter.categories":
-		if e.complexity.Chapter.Categories == nil {
+	case "Chapter.category":
+		if e.complexity.Chapter.Category == nil {
 			break
 		}
 
-		return e.complexity.Chapter.Categories(childComplexity), true
+		return e.complexity.Chapter.Category(childComplexity), true
 
 	case "Chapter.course":
 		if e.complexity.Chapter.Course == nil {
@@ -159,12 +168,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Chapter.Name(childComplexity), true
 
-	case "Course.categories":
-		if e.complexity.Course.Categories == nil {
+	case "Course.category":
+		if e.complexity.Course.Category == nil {
 			break
 		}
 
-		return e.complexity.Course.Categories(childComplexity), true
+		return e.complexity.Course.Category(childComplexity), true
 
 	case "Course.chapters":
 		if e.complexity.Course.Chapters == nil {
@@ -316,55 +325,54 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 
 var sources = []*ast.Source{
 	{Name: "graph/schema.graphqls", Input: `type Category {
-  id: ID!
-  name: String!
-  description: String!
-  courses: [Course]!
+    id: ID!
+    name: String!
+    description: String
+    courses: [Course!]!
 }
 
 type Course {
-  id: ID!
-  name: String!
-  description: String
-  categories: Category!
-  chapters: [Chapter!]
+    id: ID!
+    name: String!
+    description: String
+    category: Category!
+    chapters: [Chapter!]!
 }
 
 type Chapter {
-  id: ID!
-  name: String!
-  course: Course!
-  categories: Category!
+    id: ID!
+    name: String!
+    course: Course!
+    category: Category!
 }
 
 input NewCategory {
-  name: String!
-  description: String!
+    name: String!
+    description: String!
 }
 
 input NewCourse {
-  name: String!
-  description: String!
-  categoryId: ID!
+    name: String!
+    description: String!
+    categoryID: ID!
 }
 
-input NewChapter {
-  name: String!
-  courseId: ID!
-}
-
-type Query {
-  categories: [Category]
-  courses: [Course]
-  chapters: [Chapter]
+input NewChapter  {
+    name: String!    
+    courseId: ID!
 }
 
 type Mutation {
-  createCategory(input: NewCategory!): Category!
-  createCourse(input: NewCourse!): Course!
-  createChapter(input: NewChapter!): Chapter!
+    createCategory(input: NewCategory!): Category!
+    createCourse(input: NewCourse!): Course!
+    createChapter(input: NewChapter!): Chapter!
 }
-`, BuiltIn: false},
+
+type Query {
+    categories: [Category]
+    courses: [Course]
+    chapters: [Chapter]
+}`, BuiltIn: false},
 }
 var parsedSchema = gqlparser.MustLoadSchema(sources...)
 
@@ -378,7 +386,7 @@ func (ec *executionContext) field_Mutation_createCategory_args(ctx context.Conte
 	var arg0 model.NewCategory
 	if tmp, ok := rawArgs["input"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
-		arg0, err = ec.unmarshalNNewCategory2githubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐNewCategory(ctx, tmp)
+		arg0, err = ec.unmarshalNNewCategory2githubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐNewCategory(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -393,7 +401,7 @@ func (ec *executionContext) field_Mutation_createChapter_args(ctx context.Contex
 	var arg0 model.NewChapter
 	if tmp, ok := rawArgs["input"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
-		arg0, err = ec.unmarshalNNewChapter2githubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐNewChapter(ctx, tmp)
+		arg0, err = ec.unmarshalNNewChapter2githubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐNewChapter(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -408,7 +416,7 @@ func (ec *executionContext) field_Mutation_createCourse_args(ctx context.Context
 	var arg0 model.NewCourse
 	if tmp, ok := rawArgs["input"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
-		arg0, err = ec.unmarshalNNewCourse2githubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐNewCourse(ctx, tmp)
+		arg0, err = ec.unmarshalNNewCourse2githubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐNewCourse(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -565,14 +573,11 @@ func (ec *executionContext) _Category_description(ctx context.Context, field gra
 		return graphql.Null
 	}
 	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(*string)
 	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Category_courses(ctx context.Context, field graphql.CollectedField, obj *model.Category) (ret graphql.Marshaler) {
@@ -586,14 +591,14 @@ func (ec *executionContext) _Category_courses(ctx context.Context, field graphql
 		Object:     "Category",
 		Field:      field,
 		Args:       nil,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 	}
 
 	ctx = graphql.WithFieldContext(ctx, fc)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Courses, nil
+		return ec.resolvers.Category().Courses(rctx, obj)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -607,7 +612,7 @@ func (ec *executionContext) _Category_courses(ctx context.Context, field graphql
 	}
 	res := resTmp.([]*model.Course)
 	fc.Result = res
-	return ec.marshalNCourse2ᚕᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCourse(ctx, field.Selections, res)
+	return ec.marshalNCourse2ᚕᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCourseᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Chapter_id(ctx context.Context, field graphql.CollectedField, obj *model.Chapter) (ret graphql.Marshaler) {
@@ -712,10 +717,10 @@ func (ec *executionContext) _Chapter_course(ctx context.Context, field graphql.C
 	}
 	res := resTmp.(*model.Course)
 	fc.Result = res
-	return ec.marshalNCourse2ᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCourse(ctx, field.Selections, res)
+	return ec.marshalNCourse2ᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCourse(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Chapter_categories(ctx context.Context, field graphql.CollectedField, obj *model.Chapter) (ret graphql.Marshaler) {
+func (ec *executionContext) _Chapter_category(ctx context.Context, field graphql.CollectedField, obj *model.Chapter) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -733,7 +738,7 @@ func (ec *executionContext) _Chapter_categories(ctx context.Context, field graph
 	ctx = graphql.WithFieldContext(ctx, fc)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Categories, nil
+		return obj.Category, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -747,7 +752,7 @@ func (ec *executionContext) _Chapter_categories(ctx context.Context, field graph
 	}
 	res := resTmp.(*model.Category)
 	fc.Result = res
-	return ec.marshalNCategory2ᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCategory(ctx, field.Selections, res)
+	return ec.marshalNCategory2ᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCategory(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Course_id(ctx context.Context, field graphql.CollectedField, obj *model.Course) (ret graphql.Marshaler) {
@@ -852,7 +857,7 @@ func (ec *executionContext) _Course_description(ctx context.Context, field graph
 	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Course_categories(ctx context.Context, field graphql.CollectedField, obj *model.Course) (ret graphql.Marshaler) {
+func (ec *executionContext) _Course_category(ctx context.Context, field graphql.CollectedField, obj *model.Course) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -870,7 +875,7 @@ func (ec *executionContext) _Course_categories(ctx context.Context, field graphq
 	ctx = graphql.WithFieldContext(ctx, fc)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Categories, nil
+		return obj.Category, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -884,7 +889,7 @@ func (ec *executionContext) _Course_categories(ctx context.Context, field graphq
 	}
 	res := resTmp.(*model.Category)
 	fc.Result = res
-	return ec.marshalNCategory2ᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCategory(ctx, field.Selections, res)
+	return ec.marshalNCategory2ᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCategory(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Course_chapters(ctx context.Context, field graphql.CollectedField, obj *model.Course) (ret graphql.Marshaler) {
@@ -898,25 +903,28 @@ func (ec *executionContext) _Course_chapters(ctx context.Context, field graphql.
 		Object:     "Course",
 		Field:      field,
 		Args:       nil,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 	}
 
 	ctx = graphql.WithFieldContext(ctx, fc)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Chapters, nil
+		return ec.resolvers.Course().Chapters(rctx, obj)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
 		return graphql.Null
 	}
 	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
 		return graphql.Null
 	}
 	res := resTmp.([]*model.Chapter)
 	fc.Result = res
-	return ec.marshalOChapter2ᚕᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐChapterᚄ(ctx, field.Selections, res)
+	return ec.marshalNChapter2ᚕᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐChapterᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Mutation_createCategory(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -958,7 +966,7 @@ func (ec *executionContext) _Mutation_createCategory(ctx context.Context, field 
 	}
 	res := resTmp.(*model.Category)
 	fc.Result = res
-	return ec.marshalNCategory2ᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCategory(ctx, field.Selections, res)
+	return ec.marshalNCategory2ᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCategory(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Mutation_createCourse(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -1000,7 +1008,7 @@ func (ec *executionContext) _Mutation_createCourse(ctx context.Context, field gr
 	}
 	res := resTmp.(*model.Course)
 	fc.Result = res
-	return ec.marshalNCourse2ᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCourse(ctx, field.Selections, res)
+	return ec.marshalNCourse2ᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCourse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Mutation_createChapter(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -1042,7 +1050,7 @@ func (ec *executionContext) _Mutation_createChapter(ctx context.Context, field g
 	}
 	res := resTmp.(*model.Chapter)
 	fc.Result = res
-	return ec.marshalNChapter2ᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐChapter(ctx, field.Selections, res)
+	return ec.marshalNChapter2ᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐChapter(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_categories(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -1074,7 +1082,7 @@ func (ec *executionContext) _Query_categories(ctx context.Context, field graphql
 	}
 	res := resTmp.([]*model.Category)
 	fc.Result = res
-	return ec.marshalOCategory2ᚕᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCategory(ctx, field.Selections, res)
+	return ec.marshalOCategory2ᚕᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCategory(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_courses(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -1106,7 +1114,7 @@ func (ec *executionContext) _Query_courses(ctx context.Context, field graphql.Co
 	}
 	res := resTmp.([]*model.Course)
 	fc.Result = res
-	return ec.marshalOCourse2ᚕᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCourse(ctx, field.Selections, res)
+	return ec.marshalOCourse2ᚕᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCourse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_chapters(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -1138,7 +1146,7 @@ func (ec *executionContext) _Query_chapters(ctx context.Context, field graphql.C
 	}
 	res := resTmp.([]*model.Chapter)
 	fc.Result = res
-	return ec.marshalOChapter2ᚕᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐChapter(ctx, field.Selections, res)
+	return ec.marshalOChapter2ᚕᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐChapter(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -2377,10 +2385,10 @@ func (ec *executionContext) unmarshalInputNewCourse(ctx context.Context, obj int
 			if err != nil {
 				return it, err
 			}
-		case "categoryId":
+		case "categoryID":
 			var err error
 
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("categoryId"))
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("categoryID"))
 			it.CategoryID, err = ec.unmarshalNID2string(ctx, v)
 			if err != nil {
 				return it, err
@@ -2413,23 +2421,29 @@ func (ec *executionContext) _Category(ctx context.Context, sel ast.SelectionSet,
 		case "id":
 			out.Values[i] = ec._Category_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				invalids++
+				atomic.AddUint32(&invalids, 1)
 			}
 		case "name":
 			out.Values[i] = ec._Category_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				invalids++
+				atomic.AddUint32(&invalids, 1)
 			}
 		case "description":
 			out.Values[i] = ec._Category_description(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				invalids++
-			}
 		case "courses":
-			out.Values[i] = ec._Category_courses(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				invalids++
-			}
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Category_courses(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -2467,8 +2481,8 @@ func (ec *executionContext) _Chapter(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
-		case "categories":
-			out.Values[i] = ec._Chapter_categories(ctx, field, obj)
+		case "category":
+			out.Values[i] = ec._Chapter_category(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
@@ -2497,22 +2511,34 @@ func (ec *executionContext) _Course(ctx context.Context, sel ast.SelectionSet, o
 		case "id":
 			out.Values[i] = ec._Course_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				invalids++
+				atomic.AddUint32(&invalids, 1)
 			}
 		case "name":
 			out.Values[i] = ec._Course_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				invalids++
+				atomic.AddUint32(&invalids, 1)
 			}
 		case "description":
 			out.Values[i] = ec._Course_description(ctx, field, obj)
-		case "categories":
-			out.Values[i] = ec._Course_categories(ctx, field, obj)
+		case "category":
+			out.Values[i] = ec._Course_category(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				invalids++
+				atomic.AddUint32(&invalids, 1)
 			}
 		case "chapters":
-			out.Values[i] = ec._Course_chapters(ctx, field, obj)
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Course_chapters(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -2888,11 +2914,11 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
-func (ec *executionContext) marshalNCategory2githubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCategory(ctx context.Context, sel ast.SelectionSet, v model.Category) graphql.Marshaler {
+func (ec *executionContext) marshalNCategory2githubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCategory(ctx context.Context, sel ast.SelectionSet, v model.Category) graphql.Marshaler {
 	return ec._Category(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNCategory2ᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCategory(ctx context.Context, sel ast.SelectionSet, v *model.Category) graphql.Marshaler {
+func (ec *executionContext) marshalNCategory2ᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCategory(ctx context.Context, sel ast.SelectionSet, v *model.Category) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "must not be null")
@@ -2902,25 +2928,11 @@ func (ec *executionContext) marshalNCategory2ᚖgithubᚗcomᚋpedrofelliᚋfc2�
 	return ec._Category(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNChapter2githubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐChapter(ctx context.Context, sel ast.SelectionSet, v model.Chapter) graphql.Marshaler {
+func (ec *executionContext) marshalNChapter2githubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐChapter(ctx context.Context, sel ast.SelectionSet, v model.Chapter) graphql.Marshaler {
 	return ec._Chapter(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNChapter2ᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐChapter(ctx context.Context, sel ast.SelectionSet, v *model.Chapter) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	return ec._Chapter(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNCourse2githubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCourse(ctx context.Context, sel ast.SelectionSet, v model.Course) graphql.Marshaler {
-	return ec._Course(ctx, sel, &v)
-}
-
-func (ec *executionContext) marshalNCourse2ᚕᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCourse(ctx context.Context, sel ast.SelectionSet, v []*model.Course) graphql.Marshaler {
+func (ec *executionContext) marshalNChapter2ᚕᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐChapterᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Chapter) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -2944,7 +2956,7 @@ func (ec *executionContext) marshalNCourse2ᚕᚖgithubᚗcomᚋpedrofelliᚋfc2
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalOCourse2ᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCourse(ctx, sel, v[i])
+			ret[i] = ec.marshalNChapter2ᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐChapter(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -2957,7 +2969,58 @@ func (ec *executionContext) marshalNCourse2ᚕᚖgithubᚗcomᚋpedrofelliᚋfc2
 	return ret
 }
 
-func (ec *executionContext) marshalNCourse2ᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCourse(ctx context.Context, sel ast.SelectionSet, v *model.Course) graphql.Marshaler {
+func (ec *executionContext) marshalNChapter2ᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐChapter(ctx context.Context, sel ast.SelectionSet, v *model.Chapter) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._Chapter(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNCourse2githubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCourse(ctx context.Context, sel ast.SelectionSet, v model.Course) graphql.Marshaler {
+	return ec._Course(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNCourse2ᚕᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCourseᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Course) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNCourse2ᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCourse(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+	return ret
+}
+
+func (ec *executionContext) marshalNCourse2ᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCourse(ctx context.Context, sel ast.SelectionSet, v *model.Course) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "must not be null")
@@ -2982,17 +3045,17 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 	return res
 }
 
-func (ec *executionContext) unmarshalNNewCategory2githubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐNewCategory(ctx context.Context, v interface{}) (model.NewCategory, error) {
+func (ec *executionContext) unmarshalNNewCategory2githubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐNewCategory(ctx context.Context, v interface{}) (model.NewCategory, error) {
 	res, err := ec.unmarshalInputNewCategory(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNNewChapter2githubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐNewChapter(ctx context.Context, v interface{}) (model.NewChapter, error) {
+func (ec *executionContext) unmarshalNNewChapter2githubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐNewChapter(ctx context.Context, v interface{}) (model.NewChapter, error) {
 	res, err := ec.unmarshalInputNewChapter(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNNewCourse2githubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐNewCourse(ctx context.Context, v interface{}) (model.NewCourse, error) {
+func (ec *executionContext) unmarshalNNewCourse2githubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐNewCourse(ctx context.Context, v interface{}) (model.NewCourse, error) {
 	res, err := ec.unmarshalInputNewCourse(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
@@ -3265,7 +3328,7 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return graphql.MarshalBoolean(*v)
 }
 
-func (ec *executionContext) marshalOCategory2ᚕᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCategory(ctx context.Context, sel ast.SelectionSet, v []*model.Category) graphql.Marshaler {
+func (ec *executionContext) marshalOCategory2ᚕᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCategory(ctx context.Context, sel ast.SelectionSet, v []*model.Category) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -3292,7 +3355,7 @@ func (ec *executionContext) marshalOCategory2ᚕᚖgithubᚗcomᚋpedrofelliᚋf
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalOCategory2ᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCategory(ctx, sel, v[i])
+			ret[i] = ec.marshalOCategory2ᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCategory(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -3305,14 +3368,14 @@ func (ec *executionContext) marshalOCategory2ᚕᚖgithubᚗcomᚋpedrofelliᚋf
 	return ret
 }
 
-func (ec *executionContext) marshalOCategory2ᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCategory(ctx context.Context, sel ast.SelectionSet, v *model.Category) graphql.Marshaler {
+func (ec *executionContext) marshalOCategory2ᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCategory(ctx context.Context, sel ast.SelectionSet, v *model.Category) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._Category(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOChapter2ᚕᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐChapter(ctx context.Context, sel ast.SelectionSet, v []*model.Chapter) graphql.Marshaler {
+func (ec *executionContext) marshalOChapter2ᚕᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐChapter(ctx context.Context, sel ast.SelectionSet, v []*model.Chapter) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -3339,7 +3402,7 @@ func (ec *executionContext) marshalOChapter2ᚕᚖgithubᚗcomᚋpedrofelliᚋfc
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalOChapter2ᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐChapter(ctx, sel, v[i])
+			ret[i] = ec.marshalOChapter2ᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐChapter(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -3352,54 +3415,14 @@ func (ec *executionContext) marshalOChapter2ᚕᚖgithubᚗcomᚋpedrofelliᚋfc
 	return ret
 }
 
-func (ec *executionContext) marshalOChapter2ᚕᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐChapterᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Chapter) graphql.Marshaler {
-	if v == nil {
-		return graphql.Null
-	}
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalNChapter2ᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐChapter(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
-	return ret
-}
-
-func (ec *executionContext) marshalOChapter2ᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐChapter(ctx context.Context, sel ast.SelectionSet, v *model.Chapter) graphql.Marshaler {
+func (ec *executionContext) marshalOChapter2ᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐChapter(ctx context.Context, sel ast.SelectionSet, v *model.Chapter) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._Chapter(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOCourse2ᚕᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCourse(ctx context.Context, sel ast.SelectionSet, v []*model.Course) graphql.Marshaler {
+func (ec *executionContext) marshalOCourse2ᚕᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCourse(ctx context.Context, sel ast.SelectionSet, v []*model.Course) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -3426,7 +3449,7 @@ func (ec *executionContext) marshalOCourse2ᚕᚖgithubᚗcomᚋpedrofelliᚋfc2
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalOCourse2ᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCourse(ctx, sel, v[i])
+			ret[i] = ec.marshalOCourse2ᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCourse(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -3439,7 +3462,7 @@ func (ec *executionContext) marshalOCourse2ᚕᚖgithubᚗcomᚋpedrofelliᚋfc2
 	return ret
 }
 
-func (ec *executionContext) marshalOCourse2ᚖgithubᚗcomᚋpedrofelliᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCourse(ctx context.Context, sel ast.SelectionSet, v *model.Course) graphql.Marshaler {
+func (ec *executionContext) marshalOCourse2ᚖgithubᚗcomᚋcodeeduᚋfc2ᚑgraphqlᚋgraphᚋmodelᚐCourse(ctx context.Context, sel ast.SelectionSet, v *model.Course) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}

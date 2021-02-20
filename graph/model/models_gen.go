@@ -2,28 +2,6 @@
 
 package model
 
-type Category struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	Courses     []*Course `json:"courses"`
-}
-
-type Chapter struct {
-	ID         string    `json:"id"`
-	Name       string    `json:"name"`
-	Course     *Course   `json:"course"`
-	Categories *Category `json:"categories"`
-}
-
-type Course struct {
-	ID          string     `json:"id"`
-	Name        string     `json:"name"`
-	Description *string    `json:"description"`
-	Categories  *Category  `json:"categories"`
-	Chapters    []*Chapter `json:"chapters"`
-}
-
 type NewCategory struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
@@ -37,5 +15,5 @@ type NewChapter struct {
 type NewCourse struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
-	CategoryID  string `json:"categoryId"`
+	CategoryID  string `json:"categoryID"`
 }
